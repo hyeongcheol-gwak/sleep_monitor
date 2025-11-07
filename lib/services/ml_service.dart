@@ -26,15 +26,14 @@ class MLService {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   // --- 상태 관리 변수들 ---
-  Timer? _sleepTimer; // '수면' 상태로 넘어가는 5초(예시)를 재는 타이머
+  Timer? _sleepTimer; // '수면' 상태로 넘어가는 3초(예시)를 재는 타이머
   bool _isSleeping = false; // 현재 '수면' 상태인가? (UI 표시 및 ESP 전송용)
-  bool _isLoopingSoundPlaying = false; // 현재 '눈 감음' 반복음이 재생 중인가?
 
   // --- 튜닝 포인트 ---
-  // 1. '수면'으로 판단할 '눈 감은' 지속 시간 (기본값: 5초)
-  static const Duration _sleepThreshold = Duration(seconds: 5);
-  // 2. 눈 뜸/감음을 판단하는 민감도 (0.0 ~ 1.0, 낮을수록 감았다고 판단)
-  static const double _eyeOpenThreshold = 0.2;
+  // 1. '수면'으로 판단할 '눈 감은' 지속 시간 (기본값: 3초)
+  static const Duration _sleepThreshold = Duration(seconds: 3);
+  // 2. 눈 뜸/감음을 판단하는 민감도 (0.0 ~ 1.0, 값이 높을수록 엄격)
+  static const double _eyeOpenThreshold = 0.35;
   // --------------------
 
   // 카메라에서 받은 이미지를 AI로 분석하는 메인 함수
@@ -76,18 +75,6 @@ class MLService {
     if (leftEyeProb < _eyeOpenThreshold && rightEyeProb < _eyeOpenThreshold) {
       // --- '눈 감음' 상태로 판단 ---
 
-      // '수면' 상태가 아니고, '반복음'도 아직 안 울렸다면?
-      if (!_isSleeping && !_isLoopingSoundPlaying) {
-        _isLoopingSoundPlaying = true; // "반복음 재생!" 플래그 올리기
-        try {
-          print("--- EYES CLOSED! 'i_close_my_eyes.mp3' 반복 재생 시작 ---");
-          _audioPlayer.setReleaseMode(ReleaseMode.loop);
-          _audioPlayer.play(AssetSource('audio/i_close_my_eyes.mp3'));
-        } catch (e) {
-          print("'i_close_my_eyes.mp3' 재생 실패: $e ");
-        }
-      }
-
       // '수면' 상태가 아니라면 (아직 5초 타이머가 안 돌았다면)
       if (!_isSleeping) {
         _startSleepTimer(); // '수면' 카운트다운 타이머 시작
@@ -113,19 +100,13 @@ class MLService {
 
         // 1. '수면' 상태로 전환
         _isSleeping = true;
-        // 2. '반복음' 플래그 강제 OFF (눈 떴다 감아도 '반복음'이 다시 켜지지 않게)
-        _isLoopingSoundPlaying = false;
-
         try {
-          // 3. (중지) 시끄럽던 '눈 감음' 반복음 즉시 정지
+          // (안정화) 혹시 다른 오디오가 재생 중이었다면 정지
           _audioPlayer.stop();
-          print("--- 'i_close_my_eyes.mp3' 반복 재생 정지 ---");
-
-          // 4. (한번 재생) '수면' 알림음(i_fall_asleep.mp3)을 한 번만 재생
+          // (한번 재생) '수면' 알림음(i_fall_asleep.mp3)을 한 번만 재생
           _audioPlayer.setReleaseMode(ReleaseMode.stop);
           _audioPlayer.play(AssetSource('audio/i_fall_asleep.mp3'));
-          print("--- 'i_fall_asleep.mp3' 1회 재생 ---");
-
+          print("--- SLEEP SOUND: 'i_fall_asleep.mp3' 1회 재생 ---");
         } catch (e) {
           print("'i_fall_asleep.mp3' 재생 실패: $e ");
         }
@@ -143,10 +124,10 @@ class MLService {
       _sleepTimer!.cancel(); // 타이머 취소
     }
 
-    // 2. '반복음'이 울리고 있었거나, 혹은 이미 '수면' 상태였다면 (즉, 소리가 뭐라도 났었다면)
-    if (_isLoopingSoundPlaying || _isSleeping) {
-      print("--- EYES OPEN! ($reason) 모든 소리 정지 및 상태 리셋 ---");
-      _audioPlayer.stop(); // 모든 오디오(반복이든, 한방이든)를 즉시 정지
+    // 2. 기존에 '수면' 사운드가 재생 중이었다면 정지
+    if (_isSleeping) {
+      print("--- EYES OPEN! ($reason) 사운드 정지 및 상태 리셋 ---");
+      _audioPlayer.stop();
     }
 
     // 3. 모든 상태 플래그를 '깨어있음'(false)으로 되돌립니다.
@@ -155,7 +136,6 @@ class MLService {
       _sleepStateController.add(false);
     }
     _isSleeping = false;
-    _isLoopingSoundPlaying = false;
   }
 
   // 서비스가 종료될 때(예: 앱이 꺼질 때) 호출
