@@ -116,7 +116,7 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
       try {
         controller.startImageStream(_processCameraImage);
       } catch (e) {
-        print("!!! 카메라 스트림 재시작 실패: $e");
+        print("카메라 스트림 재시작 실패: $e");
       }
     }
   }
@@ -135,7 +135,7 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
         setState(() {});
       }
     } catch (e) {
-      print("!!! 카메라 초기화 실패: $e");
+      print("카메라 초기화 실패: $e");
     }
   }
 

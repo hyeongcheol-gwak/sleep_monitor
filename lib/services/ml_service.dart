@@ -20,8 +20,8 @@ class MLService {
   Timer? _sleepTimer;
   bool _isSleeping = false;
 
-  static const Duration _sleepThreshold = Duration(seconds: 3);
-  static const double _eyeOpenThreshold = 0.35;
+  static const Duration _sleepThreshold = Duration(seconds: 2);
+  static const double _eyeOpenThreshold = 0.4;
 
   Future<void> processCameraImage(CameraImage cameraImage, CameraDescription camera) async {
     final InputImage? inputImage = _createInputImage(cameraImage, camera);

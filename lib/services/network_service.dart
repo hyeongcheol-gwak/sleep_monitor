@@ -18,7 +18,7 @@ class NetworkService {
 
       print("Sending signal to $url");
       await http.get(url).timeout(const Duration(seconds: 2));
-      print("Signal sent successfully.");
+      print("Signal sent successfully");
 
     } catch (e) {
       print("네트워크 오류 (sendSleepSignal): $e");
