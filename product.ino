@@ -6,16 +6,16 @@
 // ==========================================
 // 1. 와이파이 설정 (핫스팟 정보 입력 필수)
 // ==========================================
-const char* ssid = "YOUR_HOTSPOT_SSID";      // 핫스팟 이름
-const char* password = "YOUR_HOTSPOT_PASSWORD"; // 핫스팟 비밀번호
+const char* ssid = "gwak";      // 핫스팟 이름
+const char* password = "01040880653"; // 핫스팟 비밀번호
 
 // ==========================================
 // 2. 포트 및 핀 설정
 // ==========================================
 const int udpPort = 4210; // UDP 통신 포트 (앱과 맞춰야 함)
-const int relayPin = 4;   // 릴레이
-const int servo1Pin = 18; // 서보 1
-const int servo2Pin = 19; // 서보 2
+const int relayPin = D2;   // 릴레이
+const int servo1Pin = D3; // 서보 1
+const int servo2Pin = D4; // 서보 2
 
 // ==========================================
 // 객체 생성
