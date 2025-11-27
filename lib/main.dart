@@ -9,10 +9,7 @@ Future<void> main() async {
   final cameras = await availableCameras();
   final CameraDescription selectedCamera = cameras.firstWhere(
         (camera) => camera.lensDirection == CameraLensDirection.front,
-    orElse: () {
-      print("경고: 전면 카메라를 찾을 수 없습니다. 후면 카메라로 대체합니다.");
-      return cameras.first;
-    },
+    orElse: () => cameras.first,
   );
 
   runApp(MyApp(camera: selectedCamera));
@@ -110,14 +107,10 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
 
     if (state == AppLifecycleState.paused) {
       controller.stopImageStream();
-      print("앱이 일시정지되어 카메라 스트림을 멈춥니다.");
     } else if (state == AppLifecycleState.resumed) {
-      print("앱이 다시 활성화되어 카메라 스트림을 시작합니다.");
       try {
         controller.startImageStream(_processCameraImage);
-      } catch (e) {
-        print("카메라 스트림 재시작 실패: $e");
-      }
+      } catch (e) {}
     }
   }
 
@@ -134,9 +127,7 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
       if (mounted) {
         setState(() {});
       }
-    } catch (e) {
-      print("카메라 초기화 실패: $e");
-    }
+    } catch (e) {}
   }
 
   void _processCameraImage(CameraImage image) {
@@ -252,12 +243,11 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
   }
 
   Future<void> _showIpSettingsDialog(BuildContext context) async {
-    // 다이얼로그 안에서 상태 변화를 주기 위해 StatefulBuilder 사용
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        bool isScanning = false; // 스캔 중 로딩 표시용
+        bool isScanning = false;
 
         return StatefulBuilder(
           builder: (context, setState) {
@@ -286,7 +276,6 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // 자동 찾기 버튼
                         isScanning
                             ? const Padding(
                           padding: EdgeInsets.all(12.0),
@@ -300,9 +289,8 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
                           icon: const Icon(Icons.search, color: Colors.blueAccent),
                           tooltip: "자동으로 기기 찾기",
                           onPressed: () async {
-                            setState(() { isScanning = true; }); // 로딩 시작
+                            setState(() { isScanning = true; });
 
-                            // UDP 스캔 실행
                             String? foundIp = await NetworkService.findEspDevice();
 
                             if (!context.mounted) return;
@@ -318,7 +306,7 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
                               );
                             }
 
-                            setState(() { isScanning = false; }); // 로딩 끝
+                            setState(() { isScanning = false; });
                           },
                         ),
                       ],

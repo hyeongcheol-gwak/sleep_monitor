@@ -29,7 +29,6 @@ class MLService {
   Future<void> processCameraImage(CameraImage cameraImage, CameraDescription camera) async {
     final InputImage? inputImage = _createInputImage(cameraImage, camera);
     if (inputImage == null) {
-      print("이미지 변환 실패. 포맷을 지원하지 않습니다.");
       return;
     }
 
@@ -68,8 +67,6 @@ class MLService {
 
     _sleepTimer = Timer(_sleepThreshold, () {
       if (!_isSleeping) {
-        print("--- SLEEP DETECTED! '수면' 상태로 전환 ---");
-
         _isSleeping = true;
         _startBeepLoop();
         _sleepStateController.add(true);
@@ -83,7 +80,6 @@ class MLService {
     }
 
     if (_isSleeping) {
-      print("--- EYES OPEN! ($reason) 사운드 정지 및 상태 리셋 ---");
       _stopBeepLoop();
     }
 
@@ -142,7 +138,6 @@ class MLService {
         metadata: metadata,
       );
     } else {
-      print("지원하지 않는 이미지 포맷입니다: ${image.format.group}");
       return null;
     }
   }
@@ -171,9 +166,7 @@ class MLService {
   Future<void> _playBeep() async {
     try {
       await _audioPlayer.play(AssetSource('audio/beep_warning.mp3'));
-    } catch (e) {
-      print("'beep_warning.mp3' 재생 실패: $e");
-    }
+    } catch (e) {}
   }
 
   void _stopBeepLoop() {
