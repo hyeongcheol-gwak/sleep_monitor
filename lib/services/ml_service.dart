@@ -19,9 +19,12 @@ class MLService {
 
   Timer? _sleepTimer;
   bool _isSleeping = false;
+  Timer? _beepGapTimer;
+  StreamSubscription<void>? _beepLoopSubscription;
 
   static const Duration _sleepThreshold = Duration(seconds: 2);
   static const double _eyeOpenThreshold = 0.4;
+  static const Duration _beepGap = Duration(milliseconds: 400);
 
   Future<void> processCameraImage(CameraImage cameraImage, CameraDescription camera) async {
     final InputImage? inputImage = _createInputImage(cameraImage, camera);
@@ -68,14 +71,7 @@ class MLService {
         print("--- SLEEP DETECTED! '수면' 상태로 전환 ---");
 
         _isSleeping = true;
-        try {
-          _audioPlayer.stop();
-          _audioPlayer.setReleaseMode(ReleaseMode.stop);
-          _audioPlayer.play(AssetSource('audio/i_fall_asleep.mp3'));
-          print("--- SLEEP SOUND: 'i_fall_asleep.mp3' 1회 재생 ---");
-        } catch (e) {
-          print("'i_fall_asleep.mp3' 재생 실패: $e ");
-        }
+        _startBeepLoop();
         _sleepStateController.add(true);
       }
     });
@@ -88,7 +84,7 @@ class MLService {
 
     if (_isSleeping) {
       print("--- EYES OPEN! ($reason) 사운드 정지 및 상태 리셋 ---");
-      _audioPlayer.stop();
+      _stopBeepLoop();
     }
 
     if (_isSleeping) {
@@ -101,6 +97,7 @@ class MLService {
     _faceDetector.close();
     _sleepStateController.close();
     _sleepTimer?.cancel();
+    _stopBeepLoop();
     _audioPlayer.dispose();
   }
 
@@ -148,5 +145,40 @@ class MLService {
       print("지원하지 않는 이미지 포맷입니다: ${image.format.group}");
       return null;
     }
+  }
+
+  void _startBeepLoop() {
+    _beepGapTimer?.cancel();
+    _beepLoopSubscription?.cancel();
+    _audioPlayer.stop();
+    _audioPlayer.setReleaseMode(ReleaseMode.stop);
+    _beepLoopSubscription = _audioPlayer.onPlayerComplete.listen((_) {
+      _scheduleNextBeep();
+    });
+    _playBeep();
+  }
+
+  void _scheduleNextBeep() {
+    _beepGapTimer?.cancel();
+    if (!_isSleeping) return;
+    _beepGapTimer = Timer(_beepGap, () {
+      if (_isSleeping) {
+        _playBeep();
+      }
+    });
+  }
+
+  Future<void> _playBeep() async {
+    try {
+      await _audioPlayer.play(AssetSource('audio/beep_warning.mp3'));
+    } catch (e) {
+      print("'beep_warning.mp3' 재생 실패: $e");
+    }
+  }
+
+  void _stopBeepLoop() {
+    _beepGapTimer?.cancel();
+    _beepLoopSubscription?.cancel();
+    _audioPlayer.stop();
   }
 }
