@@ -217,11 +217,11 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: BoxDecoration(
-        color: _isSleeping ? Colors.red.withOpacity(0.6) : Colors.green.withOpacity(0.6),
+        color: _isSleeping ? Colors.red.withValues(alpha: 0.6) : Colors.green.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -252,45 +252,102 @@ class _SleepDetectorPageState extends State<SleepDetectorPage> with WidgetsBindi
   }
 
   Future<void> _showIpSettingsDialog(BuildContext context) async {
+    // 다이얼로그 안에서 상태 변화를 주기 위해 StatefulBuilder 사용
     return showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF202020),
-          title: const Text('ESP IP 주소 설정', style: TextStyle(color: Colors.white)),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                const Text('핫스팟 \'연결된 기기\' 목록에서\nESP의 IP 주소를 확인 후 입력하세요.', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _ipController,
-                  decoration: const InputDecoration(
-                    labelText: '예: 192.168.43.102',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: Colors.white),
+      builder: (BuildContext dialogContext) {
+        bool isScanning = false; // 스캔 중 로딩 표시용
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF202020),
+              title: const Text('ESP 연결 설정', style: TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    const Text(
+                      'ESP32와 같은 Wi-Fi나 핫스팟에 연결되어 있어야 합니다.',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _ipController,
+                            decoration: const InputDecoration(
+                              labelText: 'IP 주소',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.phone,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // 자동 찾기 버튼
+                        isScanning
+                            ? const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2)
+                          ),
+                        )
+                            : IconButton(
+                          icon: const Icon(Icons.search, color: Colors.blueAccent),
+                          tooltip: "자동으로 기기 찾기",
+                          onPressed: () async {
+                            setState(() { isScanning = true; }); // 로딩 시작
+
+                            // UDP 스캔 실행
+                            String? foundIp = await NetworkService.findEspDevice();
+
+                            if (!context.mounted) return;
+
+                            if (foundIp != null) {
+                              _ipController.text = foundIp;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("기기를 찾았습니다: $foundIp")),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("기기를 찾을 수 없습니다. 핫스팟 연결을 확인하세요.")),
+                              );
+                            }
+
+                            setState(() { isScanning = false; }); // 로딩 끝
+                          },
+                        ),
+                      ],
+                    ),
+                    if (isScanning)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text("기기를 검색 중입니다...", style: TextStyle(color: Colors.blueAccent, fontSize: 12)),
+                      ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('취소', style: TextStyle(color: Colors.white70)),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                TextButton(
+                  child: Text('저장', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+                  onPressed: () {
+                    NetworkService.saveIpAddress(_ipController.text);
+                    Navigator.of(dialogContext).pop();
+                  },
                 ),
               ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('취소', style: TextStyle(color: Colors.white70)),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('저장', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
-              onPressed: () {
-                NetworkService.saveIpAddress(_ipController.text);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+            );
+          },
         );
       },
     );
