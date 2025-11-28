@@ -13,8 +13,32 @@ class NetworkService {
       socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
 
+      print("UDP Scanning started...");
+
       List<int> data = "FIND_ESP".codeUnits;
-      socket.send(data, InternetAddress('255.255.255.255'), _udpPort);
+
+      // ========================================================
+      // [수정된 부분] 신호를 3방향으로 쏩니다 (확률 극대화)
+      // ========================================================
+
+      // 1. 전체 방송 (혹시 모르니 유지)
+      try {
+        socket.send(data, InternetAddress('255.255.255.255'), _udpPort);
+      } catch (e) {}
+
+      // 2. 일반적인 안드로이드 핫스팟 대역
+      try {
+        socket.send(data, InternetAddress('192.168.43.255'), _udpPort);
+      } catch (e) {}
+
+      // 3. [중요] 사용자님의 현재 핫스팟 대역 (172.29.158.xxx)
+      // 끝자리를 255로 하면 그 동네 전체에 방송합니다.
+      try {
+        socket.send(data, InternetAddress('172.29.158.255'), _udpPort);
+      } catch (e) {
+        print("Specific broadcast failed: $e");
+      }
+      // ========================================================
 
       Completer<String?> completer = Completer();
 
@@ -24,6 +48,9 @@ class NetworkService {
           Datagram? dg = socket!.receive();
           if (dg != null) {
             String message = String.fromCharCodes(dg.data).trim();
+            print("Received response: $message"); // 로그 확인용
+
+            // IP 주소 형식인지 확인 (점 3개)
             if (message.split('.').length == 4) {
               if (!completer.isCompleted) {
                 completer.complete(message);
@@ -36,6 +63,7 @@ class NetworkService {
       return await completer.future.timeout(
         const Duration(seconds: 3),
         onTimeout: () {
+          print("UDP Scan Timeout");
           return null;
         },
       ).whenComplete(() {
@@ -44,6 +72,7 @@ class NetworkService {
       });
 
     } catch (e) {
+      print("UDP Error: $e");
       socket?.close();
       return null;
     }
@@ -59,9 +88,13 @@ class NetworkService {
       }
 
       final url = Uri.parse('http://$espIp/sleep');
+      print("Sending sleep signal to $url"); // 로그 추가
 
       await http.get(url).timeout(const Duration(seconds: 2));
-    } catch (e) {}
+      print("Signal sent!");
+    } catch (e) {
+      print("Send Error: $e");
+    }
   }
 
   static Future<void> saveIpAddress(String ip) async {
