@@ -98,8 +98,8 @@ class NetworkService {
       // ESP32 기기의 /sleep 엔드포인트로 요청을 보낼 URL을 생성합니다.
       final url = Uri.parse('http://$espIp/sleep');
 
-      // HTTP GET 요청을 보냅니다. 2초 내에 응답이 없으면 타임아웃됩니다.
-      await http.get(url).timeout(const Duration(seconds: 2));
+      // HTTP GET 요청을 보냅니다. 7초 내에 응답이 없으면 타임아웃됩니다.
+      await http.get(url).timeout(const Duration(seconds: 7));
     } catch (e) {
     }
   }

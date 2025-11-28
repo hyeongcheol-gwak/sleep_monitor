@@ -33,12 +33,12 @@ class MLService {
   // 오디오 플레이어의 재생 완료 이벤트를 구독하는 스트림 구독 객체입니다.
   StreamSubscription<void>? _beepLoopSubscription;
 
-  // 졸음으로 판단하기까지 필요한 시간입니다. 2초 동안 눈이 감겨있으면 졸음으로 판단합니다.
-  static const Duration _sleepThreshold = Duration(seconds: 2);
+  // 졸음으로 판단하기까지 필요한 시간입니다. 1.5초 동안 눈이 감겨있으면 졸음으로 판단합니다.
+  static const Duration _sleepThreshold = Duration(seconds: 1.5);
   // 눈이 열려있다고 판단하는 임계값입니다. 이 값보다 낮으면 눈이 감겨있다고 판단합니다.
   static const double _eyeOpenThreshold = 0.4;
-  // 경고음 사이의 간격 시간입니다. 400ms마다 경고음이 재생됩니다.
-  static const Duration _beepGap = Duration(milliseconds: 400);
+  // 경고음 사이의 간격 시간입니다. 200ms마다 경고음이 재생됩니다.
+  static const Duration _beepGap = Duration(milliseconds: 200);
 
   // 카메라에서 받은 이미지를 처리하여 얼굴을 감지하고 졸음을 감지하는 함수입니다.
   Future<void> processCameraImage(CameraImage cameraImage, CameraDescription camera) async {
