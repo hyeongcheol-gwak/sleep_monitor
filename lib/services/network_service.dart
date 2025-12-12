@@ -37,6 +37,36 @@ class NetworkService {
         socket.send(data, InternetAddress('172.29.158.255'), _udpPort);
       } catch (e) {}
 
+      // 현재 연결된 네트워크 인터페이스의 서브넷 브로드캐스트 주소로도 전송합니다.
+      // 이를 통해 10.x.x.x, 192.168.x.x, 172.x.x.x 등 모든 IP 대역을 지원합니다.
+      try {
+        final interfaces = await NetworkInterface.list(
+          type: InternetAddressType.IPv4,
+          includeLoopback: false,
+        );
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            // IPv4 주소만 처리합니다.
+            if (addr.type != InternetAddressType.IPv4) continue;
+            
+            // IP 주소의 옥텟을 추출합니다.
+            final octets = addr.rawAddress;
+            if (octets.length == 4) {
+              // 서브넷의 브로드캐스트 주소를 생성합니다 (마지막 옥텟을 255로 설정).
+              final broadcastAddr = InternetAddress(
+                  "${octets[0]}.${octets[1]}.${octets[2]}.255");
+              try {
+                socket.send(data, broadcastAddr, _udpPort);
+              } catch (e) {
+                // 브로드캐스트 전송 실패는 무시합니다.
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // 네트워크 인터페이스 목록 조회 실패는 무시합니다.
+      }
+
       // 비동기 작업의 완료를 알리기 위한 Completer 객체를 생성합니다.
       Completer<String?> completer = Completer();
 
