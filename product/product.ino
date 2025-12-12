@@ -35,6 +35,7 @@ char packetBuffer[255];
 void setup() {
   // 시리얼 통신을 115200 보드레이트로 시작합니다. 디버깅 목적으로 사용됩니다.
   Serial.begin(115200);
+  Serial.println("\n[Boot] Sleep monitor starting...");
   
   // 릴레이 핀을 출력 모드로 설정합니다.
   pinMode(relayPin, OUTPUT);
@@ -55,15 +56,23 @@ void setup() {
   servo2.write(0);
 
   // 지정된 SSID와 비밀번호로 와이파이에 연결을 시도합니다.
+  Serial.print("[WiFi] Connecting to ");
+  Serial.println(ssid);
   WiFi.begin(ssid, password);
 
   // 와이파이 연결이 완료될 때까지 대기합니다. 연결 상태를 확인하며 500ms마다 체크합니다.
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+    Serial.print(".");
   }
+  Serial.println();
+  Serial.print("[WiFi] Connected. IP: ");
+  Serial.println(WiFi.localIP());
 
   // UDP 서버를 시작합니다. 지정된 포트에서 UDP 패킷을 수신할 수 있게 됩니다.
   udp.begin(udpPort);
+  Serial.print("[UDP] Listening on port ");
+  Serial.println(udpPort);
 
   // HTTP 요청 경로 /sleep에 대한 핸들러를 등록합니다. 졸음 감지 시 이 경로로 요청이 오면 handleSleep 함수가 호출됩니다.
   server.on("/sleep", handleSleep);
@@ -89,6 +98,13 @@ void handleUdp() {
   int packetSize = udp.parsePacket();
   // 패킷이 수신되었는지 확인합니다.
   if (packetSize) {
+    Serial.print("[UDP] Packet size ");
+    Serial.print(packetSize);
+    Serial.print(" from ");
+    Serial.print(udp.remoteIP());
+    Serial.print(":");
+    Serial.println(udp.remotePort());
+
     // 패킷의 데이터를 버퍼에 읽어옵니다. 최대 255바이트까지 읽을 수 있습니다.
     int len = udp.read(packetBuffer, 255);
     // 문자열 종료 문자를 추가합니다. C 스타일 문자열로 만들기 위해 필요합니다.
@@ -99,12 +115,16 @@ void handleUdp() {
 
     // 수신된 메시지가 FIND_ESP이면 ESP32 기기의 IP 주소를 응답으로 보냅니다.
     if (msg == "FIND_ESP") {
+      Serial.println("[UDP] FIND_ESP received, sending IP");
       // 응답 패킷을 생성하기 시작합니다. 송신자의 IP 주소와 포트를 사용합니다.
       udp.beginPacket(udp.remoteIP(), udp.remotePort());
       // ESP32의 로컬 IP 주소를 문자열로 변환하여 패킷에 추가합니다.
       udp.print(WiFi.localIP().toString());
       // 패킷 전송을 완료합니다.
       udp.endPacket();
+    } else {
+      Serial.print("[UDP] Unknown message: ");
+      Serial.println(msg);
     }
   }
 }
