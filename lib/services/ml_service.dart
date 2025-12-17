@@ -24,17 +24,23 @@ class MLService {
   // 경고음 재생을 위한 오디오 플레이어 객체입니다.
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // 졸음 감지 타이머입니다. 눈이 감겨있는 시간을 측정합니다.
-  Timer? _sleepTimer;
-  // 현재 졸음 상태를 나타내는 플래그입니다. true이면 졸음 상태입니다.
-  bool _isSleeping = false;
+  // 알람(비프) 시작 지연 타이머 (눈 감은 후 1초).
+  Timer? _alarmTimer;
+  // ESP 트리거 지연 타이머 (눈 감은 후 2초).
+  Timer? _espTimer;
+  // 알람이 울리는 상태 플래그.
+  bool _isAlarming = false;
+  // ESP 트리거가 이미 발행됐는지 여부.
+  bool _espTriggered = false;
   // 경고음 사이의 간격을 조절하는 타이머입니다.
   Timer? _beepGapTimer;
   // 오디오 플레이어의 재생 완료 이벤트를 구독하는 스트림 구독 객체입니다.
   StreamSubscription<void>? _beepLoopSubscription;
 
-  // 졸음으로 판단하기까지 필요한 시간입니다. 1.5초 동안 눈이 감겨있으면 졸음으로 판단합니다.
-  static const Duration _sleepThreshold = Duration(seconds: 1.5);
+  // 알람 시작까지 딜레이 (눈 감은 후 1초).
+  static const Duration _alarmDelay = Duration(seconds: 1);
+  // 알람이 울린 뒤 ESP 동작까지 추가 딜레이 (알람 시작 후 2초).
+  static const Duration _espAfterAlarmDelay = Duration(seconds: 2);
   // 눈이 열려있다고 판단하는 임계값입니다. 이 값보다 낮으면 눈이 감겨있다고 판단합니다.
   static const double _eyeOpenThreshold = 0.4;
   // 경고음 사이의 간격 시간입니다. 200ms마다 경고음이 재생됩니다.
@@ -58,7 +64,7 @@ class MLService {
 
   // 감지된 얼굴 정보를 분석하여 졸음 상태를 판단하는 함수입니다.
   void _detectSleep(List<Face> faces) {
-    // 얼굴이 감지되지 않았으면 졸음 타이머를 리셋합니다.
+    // 얼굴이 감지되지 않았으면 타이머/상태를 리셋합니다.
     if (faces.isEmpty) {
       _resetSleepTimer("No face detected");
       return;
@@ -77,55 +83,52 @@ class MLService {
       return;
     }
 
-    // 양쪽 눈 모두 임계값보다 낮으면 눈이 감겨있다고 판단합니다.
-    if (leftEyeProb < _eyeOpenThreshold && rightEyeProb < _eyeOpenThreshold) {
-      // 아직 졸음 상태가 아니면 졸음 타이머를 시작합니다.
-      if (!_isSleeping) {
-        _startSleepTimer();
-      }
+    final bool eyesClosed =
+        leftEyeProb < _eyeOpenThreshold && rightEyeProb < _eyeOpenThreshold;
 
-    // 눈이 열려있으면 졸음 타이머를 리셋합니다.
+    if (eyesClosed) {
+      _startSleepTimers();
     } else {
       _resetSleepTimer("Eyes are open");
     }
   }
 
-  // 졸음 타이머를 시작하는 함수입니다. 일정 시간 동안 눈이 감겨있으면 졸음으로 판단합니다.
-  void _startSleepTimer() {
-    // 이미 타이머가 실행 중이면 함수를 종료합니다.
-    if (_sleepTimer != null && _sleepTimer!.isActive) return;
+  // 눈 감음이 감지되었을 때 알람/ESP 타이머를 시작합니다.
+  void _startSleepTimers() {
+    // 이미 알람이 스케줄되었으면 재시작하지 않음.
+    if ((_alarmTimer?.isActive ?? false) || _isAlarming) return;
 
-    // 설정된 시간 후에 콜백 함수를 실행하는 타이머를 생성합니다.
-    _sleepTimer = Timer(_sleepThreshold, () {
-      // 아직 졸음 상태가 아니면 졸음 상태로 변경합니다.
-      if (!_isSleeping) {
-        _isSleeping = true;
-        // 경고음 재생을 시작합니다.
-        _startBeepLoop();
-        // 졸음 상태 스트림에 true 값을 전달하여 졸음 상태임을 알립니다.
+    // 알람: 1초 후 시작
+    _alarmTimer = Timer(_alarmDelay, () {
+      _isAlarming = true;
+      _startBeepLoop();
+
+      // 알람 시작 후 2초 뒤 ESP 트리거
+      _espTimer = Timer(_espAfterAlarmDelay, () {
+        if (_espTriggered) return;
+        _espTriggered = true;
         _sleepStateController.add(true);
-      }
+      });
     });
   }
 
   // 졸음 타이머를 리셋하는 함수입니다. 눈이 다시 열리면 호출됩니다.
   void _resetSleepTimer(String reason) {
     // 실행 중인 타이머가 있으면 취소합니다.
-    if (_sleepTimer != null && _sleepTimer!.isActive) {
-      _sleepTimer!.cancel();
-    }
+    _alarmTimer?.cancel();
+    _espTimer?.cancel();
 
-    // 현재 졸음 상태이면 경고음 재생을 중지합니다.
-    if (_isSleeping) {
+    // 알람 중이면 중지.
+    if (_isAlarming) {
       _stopBeepLoop();
     }
 
-    // 현재 졸음 상태이면 졸음 상태 스트림에 false 값을 전달하여 깨어있음을 알립니다.
-    if (_isSleeping) {
+    // ESP 트리거가 이미 발생했으면 해제 알림.
+    if (_espTriggered) {
       _sleepStateController.add(false);
     }
-    // 졸음 상태를 false로 설정합니다.
-    _isSleeping = false;
+    _isAlarming = false;
+    _espTriggered = false;
   }
 
   // 리소스를 해제하는 함수입니다. 서비스가 더 이상 필요하지 않을 때 호출됩니다.
@@ -135,7 +138,8 @@ class MLService {
     // 졸음 상태 스트림 컨트롤러를 닫습니다.
     _sleepStateController.close();
     // 실행 중인 졸음 타이머가 있으면 취소합니다.
-    _sleepTimer?.cancel();
+    _alarmTimer?.cancel();
+    _espTimer?.cancel();
     // 경고음 재생을 중지합니다.
     _stopBeepLoop();
     // 오디오 플레이어를 해제합니다.
@@ -223,11 +227,11 @@ class MLService {
     // 실행 중인 경고음 간격 타이머가 있으면 취소합니다.
     _beepGapTimer?.cancel();
     // 더 이상 졸음 상태가 아니면 함수를 종료합니다.
-    if (!_isSleeping) return;
+    if (!_isAlarming) return;
     // 설정된 간격 시간 후에 경고음을 재생하는 타이머를 생성합니다.
     _beepGapTimer = Timer(_beepGap, () {
       // 여전히 졸음 상태이면 경고음을 재생합니다.
-      if (_isSleeping) {
+      if (_isAlarming) {
         _playBeep();
       }
     });
